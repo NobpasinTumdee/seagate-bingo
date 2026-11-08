@@ -1,0 +1,66 @@
+/* Bingo card (HTML). Sized by its container width; everything scales with --cw via container units. */
+.bcard-box { container-type: inline-size; width: 100%; }
+.bcard {
+  --line: var(--card-line);
+  background: var(--card-bg);
+  color: var(--card-text);
+  border: 2px solid var(--border-strong);
+  border-radius: 14px;
+  padding: 4cqw 4cqw 3cqw;
+  display: flex; flex-direction: column; gap: 2.5cqw;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.6), 0 12px 40px -18px rgba(0,0,0,.9);
+  position: relative;
+}
+[data-decor='deco'] .bcard::before { content: ''; position: absolute; inset: 1.4cqw; border: 1px solid rgba(212,175,55,.35); border-radius: 9px; pointer-events: none; }
+.bcard-head { display: flex; align-items: center; gap: 3cqw; }
+.bcard-logo { width: 13cqw; height: 13cqw; flex: none; }
+.bcard-title { min-width: 0; }
+.bcard-event { font: 700 6.4cqw/1.15 var(--heading-font); background: var(--title-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.bcard-date { font-size: 3.6cqw; color: var(--text-dim); }
+.bcard-grid { display: grid; grid-template-columns: repeat(var(--n), 1fr); border: 1.5px solid var(--line); border-radius: 6px; overflow: hidden; }
+.bcard-h {
+  background: var(--card-header-bg); color: var(--card-header-text);
+  font: 800 calc(40cqw / var(--n)) / 1 var(--heading-font);
+  height: calc(62cqw / var(--n) + 2cqw);
+  display: grid; place-items: center;
+  border-right: 1px solid rgba(0,0,0,.18);
+  padding: 1cqw;
+}
+.bcard-h:last-of-type { border-right: 0; }
+.bcard-h .sym { width: 100%; height: 100%; }
+.bcard-h .sym-badge { font-size: min(15cqw, 42cqh) !important; background: transparent; color: var(--card-header-text); box-shadow: none; text-shadow: none; }
+.bcard-h-wide { letter-spacing: .3em; }
+.bcard-c {
+  aspect-ratio: 1;
+  display: grid; place-items: center;
+  border-right: 1px solid var(--line); border-top: 1px solid var(--line);
+  font: 700 calc(46cqw / var(--n)) / 1 var(--heading-font);
+  font-variant-numeric: tabular-nums;
+  position: relative;
+}
+.bcard-c:nth-child(n) { border-right: 1px solid var(--line); }
+.bcard-c .sym { width: 80%; height: 80%; }
+.bcard-c.free { background: var(--card-free-bg); color: var(--accent); }
+.free-label { font-size: calc(22cqw / var(--n)); letter-spacing: .1em; font-weight: 800; }
+.bcard-c.marked::after {
+  content: ''; position: absolute; inset: 12%; border-radius: 50%;
+  background: var(--mark); box-shadow: 0 0 0 2px var(--accent) inset;
+}
+.bcard-c.marked.free::after { display: none; }
+.bcard-c.win { background: color-mix(in srgb, var(--win) 30%, transparent); }
+.bcard-c.win::after { background: color-mix(in srgb, var(--win) 55%, transparent); box-shadow: 0 0 0 3px var(--win) inset, 0 0 22px var(--win); }
+.bcard-c .num, .bcard-c .sym { position: relative; z-index: 1; }
+.bcard-foot { display: flex; justify-content: space-between; align-items: flex-end; font-size: 3.4cqw; color: var(--text-dim); }
+.bcard-no { font: 700 5.4cqw/1 var(--heading-font); color: var(--card-text); letter-spacing: .04em; display: flex; gap: 2.5cqw; align-items: baseline; }
+.bcard-code { font: 700 4.6cqw/1 ui-monospace, 'Consolas', monospace; border: 1px solid var(--line); padding: .6cqw 1.4cqw; border-radius: 4px; letter-spacing: .14em; }
+
+/* ink saver preview */
+.bcard-ink { background: #fff; color: #111; border-color: var(--accent); box-shadow: none; }
+.bcard-ink .bcard-grid { border-color: color-mix(in srgb, var(--accent) 60%, white); }
+.bcard-ink { --line: color-mix(in srgb, var(--accent) 45%, white); }
+.bcard-ink .bcard-h { background: color-mix(in srgb, var(--accent) 10%, white); color: color-mix(in srgb, var(--accent) 70%, black); }
+.bcard-ink .bcard-h .sym-badge { color: color-mix(in srgb, var(--accent) 70%, black); }
+.bcard-ink .bcard-event { background: none; color: #222; }
+.bcard-ink .bcard-no { color: #111; }
+.bcard-ink .bcard-c.free { background: color-mix(in srgb, var(--accent) 6%, white); }
+.bcard-ink .bcard-foot, .bcard-ink .bcard-date { color: #666; }

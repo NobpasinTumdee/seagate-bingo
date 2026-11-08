@@ -1,0 +1,28 @@
+.print-layout { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+.print-opts { position: sticky; top: 70px; display: flex; flex-direction: column; gap: 6px; }
+.print-opts h1 { font-size: 28px; }
+.progress-box { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.progress { height: 10px; border-radius: 99px; background: rgba(255,255,255,.08); overflow: hidden; }
+.progress span { display: block; height: 100%; background: var(--accent-grad); transition: width .2s; box-shadow: 0 0 12px var(--glow); }
+.print-preview { min-width: 0; }
+.sheet-wrap { display: flex; justify-content: center; padding: 14px 0; overflow: hidden; }
+.sheet-wrap .sheet { transform-origin: top center; zoom: .8; box-shadow: 0 20px 60px -20px #000; }
+
+.sheet { width: 210mm; height: 297mm; background: #fff; position: relative; overflow: hidden; }
+.sheet-slot { position: absolute; display: flex; align-items: center; justify-content: center; }
+.sheet .bcard { border-radius: 3mm; box-shadow: none; }
+.cut-v, .cut-h { position: absolute; border: 0 dashed #9a9a9a; }
+.cut-v { top: 2mm; bottom: 2mm; border-left-width: .3mm; }
+.cut-h { left: 2mm; right: 2mm; border-top-width: .3mm; }
+
+.print-root { display: none; }
+@page { size: A4 portrait; margin: 0; }
+@media print {
+  html, body { background: #fff !important; background-image: none !important; }
+  body > #root, .storage-banner { display: none !important; }
+  .print-root { display: block; }
+  .print-root .sheet { break-after: page; page-break-after: always; box-shadow: none; zoom: 1; }
+  .print-root .sheet:last-child { break-after: auto; page-break-after: auto; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+@media (max-width: 1000px) { .print-layout { grid-template-columns: 1fr; } .print-opts { position: static; } }

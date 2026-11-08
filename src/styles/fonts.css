@@ -1,0 +1,7 @@
+/* Bundled OFL fonts (offline). If a file fails to load the stacks fall back to system fonts. */
+@font-face { font-family: 'Sarabun'; src: url('../assets/fonts/Sarabun-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Sarabun'; src: url('../assets/fonts/Sarabun-Bold.ttf') format('truetype'); font-weight: 600 800; font-display: swap; }
+@font-face { font-family: 'Kanit'; src: url('../assets/fonts/Kanit-Medium.ttf') format('truetype'); font-weight: 400 500; font-display: swap; }
+@font-face { font-family: 'Kanit'; src: url('../assets/fonts/Kanit-Bold.ttf') format('truetype'); font-weight: 600 900; font-display: swap; }
+@font-face { font-family: 'Trirong'; src: url('../assets/fonts/Trirong-SemiBold.ttf') format('truetype'); font-weight: 400 600; font-display: swap; }
+@font-face { font-family: 'Trirong'; src: url('../assets/fonts/Trirong-Bold.ttf') format('truetype'); font-weight: 700 900; font-display: swap; }

@@ -1,0 +1,20 @@
+{
+  "name": "Seagate Products",
+  "mode": "columnLogo",
+  "columns": [
+    { "id": "exos", "label": "Exos", "speech": "เอ็กซอส", "image": "exos.png" },
+    { "id": "ironwolf", "label": "IronWolf", "speech": "ไอรอนวูล์ฟ", "image": "ironwolf.png" },
+    { "id": "barracuda", "label": "BarraCuda", "speech": "บาราคูด้า", "image": "barracuda.png" },
+    { "id": "firecuda", "label": "FireCuda", "speech": "ไฟร์คูด้า", "image": "firecuda.png" },
+    { "id": "skyhawk", "label": "SkyHawk", "speech": "สกายฮอว์ก", "image": "skyhawk.png" },
+    { "id": "nytro", "label": "Nytro", "speech": "ไนโตร", "image": "nytro.png" }
+  ],
+  "items": [
+    { "id": "exos", "label": "Exos", "speech": "เอ็กซอส", "image": "exos.png" },
+    { "id": "ironwolf", "label": "IronWolf", "speech": "ไอรอนวูล์ฟ", "image": "ironwolf.png" },
+    { "id": "barracuda", "label": "BarraCuda", "speech": "บาราคูด้า", "image": "barracuda.png" },
+    { "id": "firecuda", "label": "FireCuda", "speech": "ไฟร์คูด้า", "image": "firecuda.png" },
+    { "id": "skyhawk", "label": "SkyHawk", "speech": "สกายฮอว์ก", "image": "skyhawk.png" },
+    { "id": "nytro", "label": "Nytro", "speech": "ไนโตร", "image": "nytro.png" }
+  ]
+}
