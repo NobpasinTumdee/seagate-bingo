@@ -1,22 +1,19 @@
-import { backupFileName, collectImageRefs, createBackup, parseBackup, serializeBackup } from '../core/backup';
+import { backupFileName } from '../core/backup';
 import type { GameRecord } from '../core/game';
 import { downloadText } from '../components/ui';
-import { importGame } from './gameStore';
-import { blobToDataURL, dataURLToBlob, getImageBlob, saveImageWithKey } from './images';
+import { buildBackupText } from './backupFile';
+import { dispatchTo, loadGame } from './gameStore';
 
-export async function exportBackup(g: GameRecord) {
-  const images: Record<string, string> = {};
-  for (const key of collectImageRefs(g)) {
-    const blob = await getImageBlob('idb:' + key);
-    if (blob) images[key] = await blobToDataURL(blob);
+/** Download a backup file; clears the "please export a new backup" prompt */
+export async function exportBackup(g: GameRecord): Promise<void> {
+  let text: string;
+  try {
+    text = await buildBackupText(g);
+  } catch (e) {
+    window.alert(String((e as Error).message));
+    return;
   }
-  downloadText(backupFileName(g), serializeBackup(createBackup(g, images, Date.now())));
-}
-
-export async function importBackupFile(file: File): Promise<GameRecord> {
-  const b = parseBackup(await file.text());
-  for (const [key, data] of Object.entries(b.images)) {
-    await saveImageWithKey(key, await dataURLToBlob(data));
-  }
-  return importGame(b.game, true);
+  const fresh = loadGame(g.id) ?? g;
+  downloadText(backupFileName(fresh), text);
+  if (fresh.frozen?.backupPending) dispatchTo(g.id, { type: 'BACKUP_DONE' });
 }

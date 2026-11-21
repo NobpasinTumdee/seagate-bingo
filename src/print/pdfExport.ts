@@ -1,6 +1,8 @@
 // Vector PDF export with jsPDF (no html2canvas). Thai font embedded via addFileToVFS.
 import type { jsPDF as JsPDF } from 'jspdf';
-import { checkCode, formatCardNo, getCard } from '../core/cards';
+import { formatCardNo } from '../core/cards';
+import { cardCode } from '../core/frozen';
+import type { CardSet } from '../state/cardSet';
 import type { GameRecord } from '../core/game';
 import { columnHeader, imageItem } from '../core/symbols';
 import type { SymbolItem } from '../core/types';
@@ -142,6 +144,7 @@ function rasterText(text: string, family: string, weight: number, color: string,
 type Ctx = {
   doc: JsPDF;
   game: GameRecord;
+  cards: CardSet;
   pal: PrintPalette;
   theme: Theme;
   images: Map<string, Raster | null>;
@@ -211,7 +214,7 @@ function drawCard(ctx: Ctx, cardNo: number, slot: { x: number; y: number; w: num
   const { doc, game, pal } = ctx;
   const cfg = game.config;
   const n = cfg.size;
-  const card = getCard(cfg, game.seed!, game.attempts, cardNo);
+  const card = ctx.cards.byNo.get(cardNo)!;
   const b = cardBox(slot, n);
   const lw = 0.35 * pal.lineWeight;
 
@@ -288,7 +291,7 @@ function drawCard(ctx: Ctx, cardNo: number, slot: { x: number; y: number; w: num
   // foot: rules hint + card number + check code
   const fy = gy + n * b.cell + b.foot * 0.62;
   fitText(ctx, t.print.rulesOnScreen, gx, fy, { size: b.foot * PT_PER_MM * 0.42, maxW: gw * 0.4, family: 'Sarabun', style: 'normal', color: pal.muted });
-  const code = checkCode(game.seed!, cardNo);
+  const code = cardCode(game, card);
   const codeSize = b.foot * PT_PER_MM * 0.55;
   doc.setFont('Heading', 'bold');
   doc.setFontSize(codeSize);
@@ -331,7 +334,7 @@ export type PdfResult = {
 };
 
 /** Export cards [from..to]. Files are handed to `save` as they finish. */
-export async function exportPdf(game: GameRecord, theme: Theme, opts: PdfOptions, save: (name: string, blob: Blob) => void): Promise<PdfResult> {
+export async function exportPdf(game: GameRecord, cards: CardSet, theme: Theme, opts: PdfOptions, save: (name: string, blob: Blob) => void): Promise<PdfResult> {
   minTextDpi = Infinity;
   if (!game.seed) throw new Error('cards not generated');
   const { jsPDF } = await import('jspdf');
@@ -365,7 +368,7 @@ export async function exportPdf(game: GameRecord, theme: Theme, opts: PdfOptions
     const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
     doc.setProperties({ title: `${cfg.eventName} — BINGO ${formatCardNo(fileStart)}-${formatCardNo(fileEnd)}`, creator: 'Bingo Host' });
     await registerFonts(doc, theme);
-    const ctx: Ctx = { doc, game, pal, theme, images, aliases: new Set() };
+    const ctx: Ctx = { doc, game, cards, pal, theme, images, aliases: new Set() };
     let first = true;
     for (let pageStart = fileStart; pageStart <= fileEnd; pageStart += per) {
       if (opts.signal?.aborted) throw new DOMException('aborted', 'AbortError');
@@ -377,6 +380,13 @@ export async function exportPdf(game: GameRecord, theme: Theme, opts: PdfOptions
       }
       for (let k = 0; k < per && pageStart + k <= fileEnd; k++) drawCard(ctx, pageStart + k, slots[k]);
       if (opts.cutLines) drawCutLines(doc, layout);
+      if (game.frozen) {
+        // small set-code footer in the bottom margin (outside every card)
+        doc.setFont('Sarabun', 'normal');
+        doc.setFontSize(6.5);
+        doc.setTextColor('#777777');
+        doc.text(`ชุดใบ ${game.frozen.setCode}`, layout.pageW - layout.margin, layout.pageH - 2.5, { align: 'right', baseline: 'bottom' });
+      }
       done++;
       opts.onProgress?.(done, totalPages);
       // yield to keep the UI responsive

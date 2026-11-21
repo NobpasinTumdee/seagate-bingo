@@ -1,5 +1,6 @@
 // Card checker logic
-import { checkCode, isValidCardNo, normalizeCode } from './cards';
+import { isValidCardNo, normalizeCode } from './cards';
+import { cardCode } from './frozen';
 import type { GameRecord } from './game';
 import type { Mask } from './patterns';
 import { maskCells } from './patterns';
@@ -30,7 +31,7 @@ export function checkCard(g: GameRecord, engine: Engine, cardNo: number, code: s
   const card = engine.cardByNo(cardNo);
   if (!card) return { status: 'notFound', cardNo };
   const codeNorm = normalizeCode(code);
-  const codeOk = codeNorm.length === 0 ? undefined : codeNorm === checkCode(g.seed, cardNo);
+  const codeOk = codeNorm.length === 0 ? undefined : codeNorm === cardCode(g, card);
   if (codeOk === false) return { status: 'forged', cardNo, card, codeOk };
   const st = engine.cardStatus(cardNo, g.draws, g.currentRound);
   const winCells = st.mask ? maskCells(st.mask as Mask) : undefined;

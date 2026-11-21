@@ -284,3 +284,19 @@ fieldset:disabled { opacity: .82; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001s !important; animation-iteration-count: 1 !important; transition-duration: .001s !important; }
 }
+
+/* set code (card-set fingerprint) */
+.setcode { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.setcode-label { color: var(--text-dim, inherit); opacity: 0.8; }
+.setcode-val { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; letter-spacing: 0.06em; font-size: 1.05em; }
+.setcode-s { font-size: 0.85em; }
+.vbadge { font-size: 0.8em; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.vbadge.ok { color: var(--ok, #3aa857); }
+.vbadge.warn { color: var(--warn); }
+.setcode-line { margin: 8px 0; }
+.setcode-line .notice { margin: 6px 0 0; }
+.import-table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+.import-table th, .import-table td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.sheet-setcode { position: absolute; bottom: 2.5mm; right: 8mm; font-size: 6.5pt; color: #777; font-family: Sarabun, sans-serif; }
+.confirm-msg { white-space: pre-line; }
+.warn-text { color: var(--warn); margin-top: 4px; }

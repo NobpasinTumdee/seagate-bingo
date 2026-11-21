@@ -1,4 +1,5 @@
 // Game record + pure reducer. All state transitions go through `gameReducer`.
+import type { FrozenMeta } from './frozen';
 import { newId } from './rng';
 import { DEFAULT_POOL } from './symbols';
 import type { GameConfig, LogEntry, Round, Winner } from './types';
@@ -34,6 +35,10 @@ export type GameRecord = {
   status: GameStatus;
   settings: GameSettings;
   log: LogEntry[];
+  /** set when the cards were frozen (snapshot in IndexedDB). null/undefined = not generated or not migrated yet */
+  frozen?: FrozenMeta | null;
+  /** optional name shown in the Library only (e.g. "(นำเข้า)" suffix). Never printed. */
+  label?: string;
 };
 
 export const DEFAULT_RULES = `กติกา BINGO — New Year Party 2027
@@ -102,11 +107,13 @@ export function newGame(now: number, config?: GameConfig): GameRecord {
 export function migrateGame(raw: unknown): GameRecord {
   const g = raw as Partial<GameRecord> & { schemaVersion?: number };
   if (!g || typeof g !== 'object' || !g.config) throw new Error('invalid game record');
-  const base = newGame(g.createdAt ?? Date.now());
+  const base = newGame(g.createdAt ?? 0);
+  // A frozen config is the truth for printed cards: never fill it with today's defaults.
+  const config = g.frozen ? { ...g.config } : { ...defaultConfig(), ...g.config };
   const out: GameRecord = {
     ...base,
     ...g,
-    config: { ...defaultConfig(), ...g.config },
+    config,
     settings: { ...defaultSettings(), ...(g.settings ?? {}) },
     log: g.log ?? [],
     winners: g.winners ?? [],
@@ -123,7 +130,11 @@ export function migrateGame(raw: unknown): GameRecord {
 
 export type GameAction =
   | { type: 'UPDATE_CONFIG'; patch: Partial<GameConfig> }
-  | { type: 'GENERATE'; seed: string; attempts: Record<number, number> }
+  | { type: 'GENERATE'; seed: string; attempts: Record<number, number>; config: GameConfig; frozen: FrozenMeta }
+  /** attach a snapshot's metadata to an already generated game (migration / repair) */
+  | { type: 'FREEZE'; config: GameConfig; frozen: FrozenMeta; note: string }
+  | { type: 'RESTART_SAME_CARDS' }
+  | { type: 'BACKUP_DONE' }
   | { type: 'DRAW'; ball: number; winners: number[] }
   | { type: 'UNDO' }
   | { type: 'NEXT_ROUND'; winners: number[] }
@@ -177,10 +188,28 @@ export function gameReducer(g: GameRecord, a: Timed<GameAction>): GameRecord {
       return next({
         seed: a.seed,
         attempts: a.attempts,
+        config: a.config,
+        frozen: a.frozen,
         locked: true,
         status: 'ready',
         log: log(g, now, 'generate', `สร้างใบ ${g.config.cardCount} ใบ`),
       });
+    case 'FREEZE':
+      if (!g.seed || g.frozen) return g; // never replace an existing snapshot's metadata
+      return next({ config: a.config, frozen: a.frozen, log: log(g, now, 'freeze', a.note) });
+    case 'RESTART_SAME_CARDS':
+      if (!g.seed || !g.frozen) return g;
+      return next({
+        draws: [],
+        winners: [],
+        currentRound: 0,
+        paused: false,
+        status: 'ready',
+        log: log(g, now, 'restart', `เล่นใหม่ด้วยใบชุดเดิม (ชุดใบ ${g.frozen.setCode})`),
+      });
+    case 'BACKUP_DONE':
+      if (!g.frozen?.backupPending) return g;
+      return next({ frozen: { ...g.frozen, backupPending: false } });
     case 'DRAW': {
       if (!canDraw(g).ok) return g;
       if (g.draws.includes(a.ball) || a.ball < g.config.poolMin || a.ball > g.config.poolMax) return g;

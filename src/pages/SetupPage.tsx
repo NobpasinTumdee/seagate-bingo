@@ -1,18 +1,21 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { buildAttemptMap, checkCode, getCard } from '../core/cards';
+import { getCard } from '../core/cards';
+import { cardCode } from '../core/frozen';
 import { DEFAULT_RULES } from '../core/game';
 import { BUILTIN_PATTERNS, compilePattern, previewGrid } from '../core/patterns';
-import { newId, newSeed } from '../core/rng';
+import { newId } from '../core/rng';
 import { DEFAULT_POOL, hasFreeCell, poolSize, poolWarnings, validatePool } from '../core/symbols';
 import type { CardSize, GameConfig, Round, SymbolItem, SymbolMode, SymbolSet } from '../core/types';
 import { CardView } from '../components/CardView';
+import { SetCodeLine } from '../components/SetCode';
 import { Estimator } from '../components/Estimator';
 import { SymbolSetEditor } from '../components/SymbolSetEditor';
 import { SymbolView } from '../components/SymbolView';
 import { Modal, NoGame, PatternGrid, TopNav, useConfirm } from '../components/ui';
 import { t } from '../i18n/th';
 import { exportBackup } from '../state/backupIO';
+import { generateNewSet, useCardSet } from '../state/cardSet';
 import { dispatch, duplicateGame, useGame } from '../state/gameStore';
 import { saveImage } from '../state/images';
 import { CLASSIC_SET, useSymbolSets } from '../state/symbolSets';
@@ -106,6 +109,7 @@ export default function SetupPage() {
 
   const cfg = game?.config;
   const set = useMemo(() => sets.find((s) => s.id === cfg?.symbolSetId) ?? CLASSIC_SET, [sets, cfg?.symbolSetId]);
+  const cards = useCardSet(game ?? null);
 
   if (!game || !cfg) return <NoGame />;
   const locked = game.locked;
@@ -133,8 +137,8 @@ export default function SetupPage() {
     ...cfg.customPatterns.filter((p) => !p.size || p.size === cfg.size),
   ];
 
-  const sampleSeed = game.seed ?? 'preview-seed';
-  const sample = poolErrors.length === 0 ? getCard(cfg, sampleSeed, game.attempts, cfg.startNumber) : null;
+  // locked: show the frozen card #1; before generating: a preview with a fixed seed
+  const sample = game.seed ? cards.set?.cards[0] ?? null : poolErrors.length === 0 ? getCard(cfg, 'preview-seed', {}, cfg.startNumber) : null;
 
   const validateAll = (): string[] => {
     const errs = [...poolErrors];
@@ -156,16 +160,17 @@ export default function SetupPage() {
     if (errs.length) return;
     confirm.ask(t.setup.confirmGenerate, () => {
       setBusy(true);
-      setTimeout(() => {
+      setTimeout(async () => {
         try {
-          const seed = newSeed();
-          const attempts = buildAttemptMap(cfg, seed);
           // strip rounds' invalid pattern ids before locking
-          patch({
+          const finalCfg: GameConfig = {
+            ...cfg,
             rounds: cfg.rounds.map((r) => ({ ...r, patternIds: r.patternIds.filter((id) => compilePattern(id, cfg.size, cfg.customPatterns).masks.length > 0) })),
             freeCenter: hasFreeCell(cfg),
-          });
-          dispatch({ type: 'GENERATE', seed, attempts });
+          };
+          // cards, images and the set code are frozen (snapshot saved) before the game is locked
+          const res = await generateNewSet(game, finalCfg);
+          dispatch({ type: 'GENERATE', ...res });
           setDoneOpen(true);
         } catch (e) {
           setErrors([String((e as Error).message)]);
@@ -201,6 +206,7 @@ export default function SetupPage() {
           )}
         </div>
         {locked && <div className="notice warn">🔒 {t.setup.locked}</div>}
+        {locked && <SetCodeLine game={game} error={cards.error} />}
 
         <div className="setup-grid">
           <fieldset disabled={locked} className="setup-col">
@@ -215,7 +221,7 @@ export default function SetupPage() {
                   <div className="logo-preview">
                     {cfg.eventLogo ? <SymbolView item={{ id: 'l', label: 'LOGO', image: cfg.eventLogo }} /> : <span className="dim small">{t.common.none}</span>}
                   </div>
-                  <select value={BRAND_LOGOS.includes(cfg.eventLogo ?? '') ? cfg.eventLogo : cfg.eventLogo ? 'custom' : ''} onChange={(e) => e.target.value !== 'custom' && patch({ eventLogo: e.target.value || undefined })}>
+                  <select value={BRAND_LOGOS.includes(cfg.eventLogo ?? '') ? cfg.eventLogo : cfg.eventLogo ? 'custom' : ''} onChange={(e) => e.target.value !== 'custom' && patch({ eventLogo: e.target.value })}>
                     {BRAND_LOGOS.map((p) => <option key={p} value={p}>{p.split('/').pop()}</option>)}
                     {cfg.eventLogo && !BRAND_LOGOS.includes(cfg.eventLogo) && <option value="custom">อัปโหลดแล้ว</option>}
                     <option value="">{t.setup.removeLogo}</option>
@@ -405,7 +411,7 @@ export default function SetupPage() {
               <Estimator cfg={cfg} />
               {sample && (
                 <div className="sample-card">
-                  <CardView cfg={cfg} card={sample} code={game.seed ? checkCode(game.seed, sample.no) : 'ABCD'} variant={game.settings.printStyle} />
+                  <CardView cfg={cfg} card={sample} code={game.seed ? cardCode(game, sample) : 'ABCD'} variant={game.settings.printStyle} />
                 </div>
               )}
               {errors.length > 0 && (

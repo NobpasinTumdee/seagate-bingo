@@ -1,6 +1,7 @@
 // Regression: the Display must never receive unrevealed winners (card numbers / codes), at any point.
 import { describe, expect, it } from 'vitest';
-import { buildAttemptMap, checkCode, formatCardNo } from '../core/cards';
+import { buildAttemptMap, formatCardNo } from '../core/cards';
+import { cardCode } from '../core/frozen';
 import { defaultConfig, gameReducer, newGame, type GameAction, type GameRecord } from '../core/game';
 import { maskCells } from '../core/patterns';
 import { seededRng, shuffle } from '../core/rng';
@@ -9,6 +10,9 @@ import { Engine } from '../core/winners';
 import { buildPublicState, withoutTransient, type LiveState, type PublicCard, type PublicState } from './publicState';
 
 const T = (a: GameAction, now = 1) => ({ ...a, now });
+
+let lastEngine: Engine | null = null;
+const engineOf = (_g: GameRecord) => lastEngine!;
 
 function setup(): { g: GameRecord; engine: Engine } {
   const cfg = {
@@ -21,8 +25,9 @@ function setup(): { g: GameRecord; engine: Engine } {
     ],
   };
   let g = newGame(0, cfg);
-  g = gameReducer(g, T({ type: 'GENERATE', seed: 'leak-test', attempts: buildAttemptMap(cfg, 'leak-test') }));
-  return { g, engine: new Engine(g.config, g.seed!, g.attempts) };
+  g = gameReducer(g, T({ type: 'GENERATE', seed: 'leak-test', attempts: buildAttemptMap(cfg, 'leak-test'), config: cfg, frozen: { generatorVersion: 2, setCode: 'TEST-SET1', origin: 'generated', verified: true, backupPending: false } }));
+  lastEngine = new Engine(g.config, g.seed!, g.attempts);
+  return { g, engine: lastEngine };
 }
 
 function card(engine: Engine, g: GameRecord, no: number, round: number): PublicCard {
@@ -42,7 +47,7 @@ function visibleCards(ps: PublicState): { round: number | null; no: number }[] {
 function assertNoLeak(g: GameRecord, ps: PublicState, where: string) {
   const json = JSON.stringify(ps);
   // no check code of ANY card ever goes to the Display
-  for (const w of g.winners) expect(json, `${where}: code of #${w.cardNo}`).not.toContain(checkCode(g.seed!, w.cardNo));
+  for (const w of g.winners) expect(json, `${where}: code of #${w.cardNo}`).not.toContain(cardCode(g, { no: w.cardNo, cells: engineOf(g).cardByNo(w.cardNo)!.cells }));
   const hidden = g.winners.filter((w) => !w.revealed);
   for (const v of visibleCards(ps)) {
     const leak = hidden.find((w) => w.cardNo === v.no && (v.round === null || v.round === w.round));

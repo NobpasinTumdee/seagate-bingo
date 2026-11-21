@@ -2,6 +2,7 @@
 import { useSyncExternalStore } from 'react';
 import { gameReducer, migrateGame, newGame, type GameAction, type GameRecord } from '../core/game';
 import { newId } from '../core/rng';
+import { deleteSnapshot } from './snapshotDb';
 import { readJSON, removeKey, writeJSON } from './storage';
 
 const INDEX_KEY = 'bingo:index';
@@ -16,17 +17,27 @@ export type GameMeta = {
   size: number;
   cardCount: number;
   status: GameRecord['status'];
+  generated?: boolean;
+  setCode?: string;
+  verified?: boolean;
+  backupPending?: boolean;
+  draws?: number;
 };
 
 function metaOf(g: GameRecord): GameMeta {
   return {
     id: g.id,
-    name: g.config.eventName,
+    name: g.label || g.config.eventName,
     createdAt: g.createdAt,
     updatedAt: g.updatedAt,
     size: g.config.size,
     cardCount: g.config.cardCount,
     status: g.status,
+    generated: !!g.seed,
+    setCode: g.frozen?.setCode,
+    verified: g.frozen?.verified,
+    backupPending: g.frozen?.backupPending,
+    draws: g.draws.length,
   };
 }
 
@@ -111,9 +122,8 @@ export function duplicateGame(id: string): GameRecord | null {
   return g;
 }
 
-export function importGame(record: GameRecord, keepId = false): GameRecord {
-  const g = migrateGame(structuredClone(record));
-  if (!keepId || loadGame(g.id)) g.id = newId('g');
+/** Store an imported record exactly as given (its card snapshot must already be saved) */
+export function saveImportedGame(g: GameRecord): GameRecord {
   persist(g);
   setActiveGame(g.id);
   return g;
@@ -121,6 +131,7 @@ export function importGame(record: GameRecord, keepId = false): GameRecord {
 
 export function deleteGame(id: string) {
   removeKey(gameKey(id));
+  void deleteSnapshot(id);
   saveIndex(listGames().filter((m) => m.id !== id));
   if (getActiveId() === id) setActiveGame(null);
   else emit();
@@ -132,6 +143,19 @@ export function dispatch(action: GameAction): GameRecord | null {
   const next = gameReducer(g, { ...action, now: Date.now() });
   if (next !== g) {
     current = next;
+    persist(next);
+    emit();
+  }
+  return next;
+}
+
+/** Apply an action to any stored game (not only the active one), e.g. migration in the Library */
+export function dispatchTo(id: string, action: GameAction): GameRecord | null {
+  if (current?.id === id || (!current && getActiveId() === id)) return dispatch(action);
+  const g = loadGame(id);
+  if (!g) return null;
+  const next = gameReducer(g, { ...action, now: Date.now() });
+  if (next !== g) {
     persist(next);
     emit();
   }

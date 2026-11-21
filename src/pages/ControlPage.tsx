@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { checkCode, formatCardNo } from '../core/cards';
+import { formatCardNo } from '../core/cards';
+import { cardCode } from '../core/frozen';
 import { canDraw, remainingBalls } from '../core/game';
 import { maskCells } from '../core/patterns';
 import { secureRandomInt } from '../core/rng';
@@ -13,7 +14,9 @@ import { hasThaiVoice, unlockAudio } from '../components/stage/audio';
 import { Modal, NoGame, PatternGrid, useConfirm } from '../components/ui';
 import { t } from '../i18n/th';
 import { exportBackup } from '../state/backupIO';
+import { useCardSet } from '../state/cardSet';
 import { getEngine } from '../state/engine';
+import { SetCodeBadge } from '../components/SetCode';
 import { dispatch, useGame } from '../state/gameStore';
 import { animTiming, buildPublicState, prefersReducedMotion, type LiveState, type PublicCard } from '../state/publicState';
 import { createHost } from '../state/sync';
@@ -26,7 +29,8 @@ const isTyping = (e: KeyboardEvent) => {
 
 export default function ControlPage() {
   const game = useGame();
-  const engine = useMemo(() => getEngine(game), [game]);
+  const cardSet = useCardSet(game);
+  const engine = useMemo(() => getEngine(game, cardSet.set), [game, cardSet.set]);
   const [live, setLive] = useState<LiveState>({ reveal: null, showCard: null, rulesOpen: false });
   const [animating, setAnimating] = useState(false);
   const [presenter, setPresenter] = useState(false);
@@ -174,6 +178,13 @@ export default function ControlPage() {
   }, [checked, game, engine]);
 
   if (!game || !cfg) return <NoGame />;
+  if (game.seed && !engine) {
+    return (
+      <div className="page center-page">
+        {cardSet.error ? <div className="notice bad">{cardSet.error}</div> : <div className="dim">{t.cardSet.loading}</div>}
+      </div>
+    );
+  }
   if (!game.seed || !engine) {
     return (
       <div className="page center-page">
@@ -251,6 +262,10 @@ export default function ControlPage() {
         {THEMES.map((th) => <option key={th.id} value={th.id}>{th.name}</option>)}
       </select>
       <span className="grow" />
+      <SetCodeBadge code={game.frozen?.setCode} small />
+      {game.status === 'finished' && game.frozen && (
+        <button className="btn btn-s" onClick={() => confirm.ask(t.cardSet.confirmRestart(game.label || cfg.eventName, game.frozen!.setCode), () => dispatch({ type: 'RESTART_SAME_CARDS' }))}>↻ {t.cardSet.restart}</button>
+      )}
       <button className="btn btn-s" onClick={() => exportBackup(game)}>{t.control.exportBackup}</button>
       <button className="btn btn-s" onClick={() => setLogOpen(true)}>{t.control.log}</button>
       <button className="btn btn-s btn-danger" disabled={game.status === 'finished'} onClick={() => confirm.ask(t.control.confirmEnd, () => dispatch({ type: 'END_GAME' }))}>{t.control.endGame}</button>
@@ -275,11 +290,11 @@ export default function ControlPage() {
       {checkResult && (
         <div className={`check-result st-${checkResult.status}`}>
           <div className="check-status">{statusText(checkResult)}</div>
-          {checkResult.codeOk === undefined && checkResult.card && checkResult.status !== 'forged' && <div className="dim small">{t.control.noCode} ({t.display.card} {formatCardNo(checkResult.cardNo)}: {checkCode(game.seed, checkResult.cardNo)})</div>}
+          {checkResult.codeOk === undefined && checkResult.card && checkResult.status !== 'forged' && <div className="dim small">{t.control.noCode} ({t.display.card} {formatCardNo(checkResult.cardNo)}: {cardCode(game, checkResult.card)})</div>}
           {checkResult.card && (
             <>
               <div className="check-card">
-                <CardView cfg={cfg} card={checkResult.card} code={checkCode(game.seed, checkResult.cardNo)} drawn={drawnSet} highlight={checkResult.winCells} showMeta={false} />
+                <CardView cfg={cfg} card={checkResult.card} code={cardCode(game, checkResult.card)} drawn={drawnSet} highlight={checkResult.winCells} showMeta={false} />
               </div>
               <div className="row gap-s wrap">
                 {live.showCard?.card.no === checkResult.cardNo ? (
@@ -389,7 +404,7 @@ export default function ControlPage() {
                   <span className="ctl-wround-name">{r.name}</span>
                   <span className="ctl-wcards">
                     {ws.length === 0 ? <span className="dim">—</span> : ws.map((w) => (
-                      <button key={w.cardNo} className={`wchip ${w.revealed ? 'revealed' : ''}`} title={w.revealed ? t.control.revealed : ''} onClick={() => { setCheckInput(String(w.cardNo)); setChecked({ no: w.cardNo, code: checkCode(game.seed!, w.cardNo) }); }}>
+                      <button key={w.cardNo} className={`wchip ${w.revealed ? 'revealed' : ''}`} title={w.revealed ? t.control.revealed : ''} onClick={() => { setCheckInput(String(w.cardNo)); setChecked({ no: w.cardNo, code: engine.cardByNo(w.cardNo) ? cardCode(game, engine.cardByNo(w.cardNo)!) : '' }); }}>
                         {formatCardNo(w.cardNo)} <small>{t.common.draw} {w.atDraw}</small>
                       </button>
                     ))}

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { checkCode, getCard } from '../core/cards';
+import { cardCode } from '../core/frozen';
 import type { GameRecord } from '../core/game';
 import { CardView } from '../components/CardView';
+import { SetCodeLine } from '../components/SetCode';
+import { useCardSet, type CardSet } from '../state/cardSet';
 import { downloadBlob, NoGame, TopNav } from '../components/ui';
 import { t } from '../i18n/th';
 import { cardBox, LAYOUTS, pageSlots, perPage } from '../print/layouts';
@@ -11,7 +13,7 @@ import { exportPdf } from '../print/pdfExport';
 import { dispatch, useGame } from '../state/gameStore';
 import { getTheme } from '../themes';
 
-function Sheet({ game, startNo, endNo, variant, cutLines }: { game: GameRecord; startNo: number; endNo: number; variant: 'color' | 'ink'; cutLines: boolean }) {
+function Sheet({ game, cards, startNo, endNo, variant, cutLines }: { game: GameRecord; cards: CardSet; startNo: number; endNo: number; variant: 'color' | 'ink'; cutLines: boolean }) {
   const cfg = game.config;
   const layout = LAYOUTS[cfg.size];
   const slots = pageSlots(layout);
@@ -29,13 +31,15 @@ function Sheet({ game, startNo, endNo, variant, cutLines }: { game: GameRecord; 
           ))}
         </>
       )}
+      {game.frozen && <span className="sheet-setcode">ชุดใบ {game.frozen.setCode}</span>}
       {nos.map((no, k) => {
         const box = cardBox(slots[k], cfg.size);
+        const card = cards.byNo.get(no)!;
         const w = box.w * 0.94;
         return (
           <div key={no} className="sheet-slot" style={{ left: `${slots[k].x}mm`, top: `${slots[k].y}mm`, width: `${slots[k].w}mm`, height: `${slots[k].h}mm` }}>
             <div style={{ width: `${w}mm` }}>
-              <CardView cfg={cfg} card={getCard(cfg, game.seed!, game.attempts, no)} code={checkCode(game.seed!, no)} variant={variant} />
+              <CardView cfg={cfg} card={card} code={cardCode(game, card)} variant={variant} />
             </div>
           </div>
         );
@@ -46,6 +50,7 @@ function Sheet({ game, startNo, endNo, variant, cutLines }: { game: GameRecord; 
 
 export default function PrintPage() {
   const game = useGame();
+  const cardSet = useCardSet(game);
   const [rangeMode, setRangeMode] = useState<'all' | 'range'>('all');
   const [from, setFrom] = useState(1);
   const [to, setTo] = useState(1);
@@ -99,6 +104,15 @@ export default function PrintPage() {
     );
   }
 
+  if (!cardSet.set) {
+    return (
+      <div className="page">
+        <TopNav />
+        <div className="container">{cardSet.error ? <div className="notice bad">{cardSet.error}</div> : <div className="dim">{t.cardSet.loading}</div>}</div>
+      </div>
+    );
+  }
+  const cards = cardSet.set;
   const cfg = game.config;
   const layout = LAYOUTS[cfg.size];
   const per = perPage(layout);
@@ -114,7 +128,7 @@ export default function PrintPage() {
     setMessage(null);
     setProgress({ done: 0, total: pages });
     try {
-      const res = await exportPdf(game, theme, {
+      const res = await exportPdf(game, cards, theme, {
         from: range.a,
         to: range.b,
         style,
@@ -165,6 +179,7 @@ export default function PrintPage() {
             <span>{t.print.perFile}</span>
             <input type="number" min={1} value={pagesPerFile} onChange={(e) => setPagesPerFile(parseInt(e.target.value || '100', 10))} />
           </label>
+          <SetCodeLine game={game} />
           <div className="col gap-s">
             <button className="btn btn-lg" disabled={!!progress || printing} onClick={() => setPrinting(true)}>{t.print.printNow}</button>
             <button className="btn btn-primary btn-lg" disabled={!!progress} onClick={runPdf}>{t.print.exportPdf}</button>
@@ -190,7 +205,7 @@ export default function PrintPage() {
             </div>
           </div>
           <div className="sheet-wrap">
-            <Sheet game={game} startNo={range.a + pv * per} endNo={range.b} variant={style} cutLines={cutLines} />
+            <Sheet game={game} cards={cards} startNo={range.a + pv * per} endNo={range.b} variant={style} cutLines={cutLines} />
           </div>
         </section>
       </main>
@@ -198,7 +213,7 @@ export default function PrintPage() {
         createPortal(
           <div className="print-root">
             {Array.from({ length: pages }, (_, p) => (
-              <Sheet key={p} game={game} startNo={range.a + p * per} endNo={range.b} variant={style} cutLines={cutLines} />
+              <Sheet key={p} game={game} cards={cards} startNo={range.a + p * per} endNo={range.b} variant={style} cutLines={cutLines} />
             ))}
           </div>,
           document.body,

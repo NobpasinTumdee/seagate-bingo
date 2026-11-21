@@ -1,12 +1,16 @@
 // Uploaded images live in IndexedDB (idb-keyval). Refs look like `idb:<key>`.
 import { del, get, set } from 'idb-keyval';
 import { useEffect, useState } from 'react';
+import { bytesToDataUrl, dataUrlToBytes, sha256, toHex } from '../core/bytes';
+import { MISSING_PREFIX, shaKey, shaRef } from '../core/frozen';
 import { newId } from '../core/rng';
 
 const urlCache = new Map<string, string>();
 const pending = new Map<string, Promise<string | null>>();
 
 export const isIdbRef = (s?: string) => !!s && s.startsWith('idb:');
+/** an image that could not be loaded when the card set was frozen: always rendered as its text badge */
+export const isMissingRef = (s?: string) => !!s && s.startsWith(MISSING_PREFIX);
 
 /** Resize big raster images so storage and PDFs stay small. SVG is kept as-is. */
 async function normalizeImage(file: Blob): Promise<Blob> {
@@ -52,6 +56,7 @@ export async function deleteImage(ref: string) {
 }
 
 export async function getImageBlob(ref: string): Promise<Blob | null> {
+  if (isMissingRef(ref)) return null;
   if (isIdbRef(ref)) {
     try {
       return ((await get(ref.slice(4))) as Blob | undefined) ?? null;
@@ -72,7 +77,7 @@ export async function getImageBlob(ref: string): Promise<Blob | null> {
 
 /** Resolve a ref (url or idb:key) to something usable in <img src> */
 export async function resolveImage(ref?: string): Promise<string | null> {
-  if (!ref) return null;
+  if (!ref || isMissingRef(ref)) return null;
   if (!isIdbRef(ref)) return ref;
   const key = ref.slice(4);
   const cached = urlCache.get(key);
@@ -95,11 +100,11 @@ export async function resolveImage(ref?: string): Promise<string | null> {
 
 export function useImageUrl(ref?: string): string | null {
   const [url, setUrl] = useState<string | null>(() =>
-    !ref ? null : isIdbRef(ref) ? urlCache.get(ref.slice(4)) ?? null : ref,
+    !ref || isMissingRef(ref) ? null : isIdbRef(ref) ? urlCache.get(ref.slice(4)) ?? null : ref,
   );
   useEffect(() => {
     let alive = true;
-    if (!ref) {
+    if (!ref || isMissingRef(ref)) {
       setUrl(null);
       return;
     }
@@ -111,16 +116,30 @@ export function useImageUrl(ref?: string): string | null {
   return url;
 }
 
-export function blobToDataURL(b: Blob): Promise<string> {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(r.result as string);
-    r.onerror = () => rej(r.error);
-    r.readAsDataURL(b);
-  });
+export async function blobToDataURL(b: Blob): Promise<string> {
+  return bytesToDataUrl(new Uint8Array(await b.arrayBuffer()), b.type);
 }
 
 export async function dataURLToBlob(d: string): Promise<Blob> {
-  const r = await fetch(d);
-  return r.blob();
+  const { mime, bytes } = dataUrlToBytes(d);
+  return new Blob([bytes], { type: mime });
+}
+
+/** Store bytes under their content hash; returns the sha256 hex */
+export async function saveContentImage(bytes: Uint8Array, mime: string): Promise<string> {
+  const hex = toHex(await sha256(bytes));
+  await saveImageWithKey(shaKey(hex), new Blob([bytes], { type: mime }));
+  return hex;
+}
+
+/**
+ * Freeze one image ref: load its bytes on this machine and store them content-addressed.
+ * Returns `idb:sha_<hex>`, or `missing:<ref>` when the image cannot be loaded here.
+ */
+export async function freezeImageRef(ref: string): Promise<string> {
+  if (isMissingRef(ref) || ref.startsWith('idb:sha_')) return ref;
+  const blob = await getImageBlob(ref);
+  if (!blob) return MISSING_PREFIX + ref;
+  const hex = await saveContentImage(new Uint8Array(await blob.arrayBuffer()), blob.type);
+  return shaRef(hex);
 }

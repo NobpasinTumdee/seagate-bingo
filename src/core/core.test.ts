@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createBackup, parseBackup, serializeBackup } from './backup';
 import { buildAttemptMap, cardKey, checkCode, CODE_ALPHABET, generateCardCells, getAllCards, getCard } from './cards';
+import { cardCode } from './frozen';
 import { estimate } from './estimate';
 import { defaultConfig, gameReducer, newGame, type GameAction, type GameRecord } from './game';
 import { compilePattern, compileRound, maskFromCells, matchMask, missingCount } from './patterns';
@@ -160,7 +161,7 @@ describe('patterns', () => {
 function playable(cardCount = 300): GameRecord {
   const cfg = cfgFor(5, { cardCount });
   let g = newGame(0, cfg);
-  g = gameReducer(g, T({ type: 'GENERATE', seed: 'play', attempts: buildAttemptMap(cfg, 'play') }));
+  g = gameReducer(g, T({ type: 'GENERATE', seed: 'play', attempts: buildAttemptMap(cfg, 'play'), config: cfg, frozen: { generatorVersion: 2, setCode: 'TEST-SET1', origin: 'generated', verified: true, backupPending: false } }));
   return g;
 }
 
@@ -204,7 +205,7 @@ describe('game reducer', () => {
     const card = engine.cards[10];
     const col = [0, 5, 10, 15, 20].map((i) => card.cells[i]);
     for (const ball of col.slice(0, 3)) g = gameReducer(g, T({ type: 'DRAW', ball, winners: [] }));
-    const code = checkCode(g.seed!, card.no);
+    const code = cardCode(g, card);
     expect(checkCard(g, engine, card.no, code).status).toBe('pending');
     expect(checkCard(g, engine, card.no, code).missing).toBeLessThanOrEqual(2);
     const wrong = code === 'AAAA' ? 'BBBB' : 'AAAA';
